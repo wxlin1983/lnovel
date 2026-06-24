@@ -1,6 +1,7 @@
 """Lists models currently pulled in a local Ollama instance."""
 
 import httpx
+from fastapi import HTTPException
 
 from app.config import settings
 
@@ -19,9 +20,13 @@ async def list_ollama_models(base_url: str) -> list[dict]:
     if settings.llm_mock:
         return _MOCK_OLLAMA_MODELS
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{base_url.rstrip('/')}/api/tags")
-    response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{base_url.rstrip('/')}/api/tags")
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"連線 Ollama 失敗：{exc}") from exc
+
     data = response.json().get("models", [])
     return [{"id": m["name"], "name": m["name"], "context_length": None} for m in data]
 
