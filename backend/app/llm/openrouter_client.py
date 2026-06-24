@@ -61,3 +61,41 @@ async def _mock_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
     reply = f"（模擬回覆）已收到：{last_user[:80]}"
     for ch in reply:
         yield ch
+
+
+async def complete_chat(*, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
+    """Non-streaming completion. Used for structured-JSON generation (e.g. chapter plans)."""
+    if settings.llm_mock:
+        return _mock_complete()
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": model, "messages": messages, "stream": False}
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+    except httpx.HTTPError as exc:
+        raise OpenRouterError(502, f"連線 OpenRouter 失敗: {exc}") from exc
+
+    if response.status_code == 401:
+        raise OpenRouterError(401, "OpenRouter 金鑰無效")
+    if response.status_code == 429:
+        raise OpenRouterError(429, "OpenRouter 已達速率限制，請稍後再試")
+    if response.status_code >= 400:
+        raise OpenRouterError(response.status_code, response.text)
+
+    data = response.json()
+    return data["choices"][0]["message"]["content"]
+
+
+def _mock_complete() -> str:
+    return json.dumps(
+        {
+            "beats": [
+                {"title": "模擬章節開場", "summary": "（模擬）這是自動生成的測試節拍：建立場景與衝突的種子。"},
+                {"title": "模擬中段衝突", "summary": "（模擬）測試節拍：角色之間的衝突升溫。"},
+                {"title": "模擬章節收尾", "summary": "（模擬）測試節拍：留下懸念，銜接下一章。"},
+            ]
+        },
+        ensure_ascii=False,
+    )

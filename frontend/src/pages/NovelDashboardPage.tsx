@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { novelsApi } from '../api/novels'
 import { entitiesApi } from '../api/entities'
+import { chaptersApi } from '../api/chapters'
 import type { Entity, EntityType } from '../api/types'
 import { EntityForm } from '../components/EntityForm'
 import { EntityChatPanel } from '../components/EntityChatPanel'
@@ -12,6 +13,12 @@ const TYPE_LABELS: Record<EntityType, string> = {
   location: '地點',
   storyline: '故事線',
 }
+
+const CHAPTER_STATUS_LABELS = {
+  planned: '規劃中',
+  drafted: '草稿',
+  final: '完稿',
+} as const
 
 export function NovelDashboardPage() {
   const { novelId } = useParams<{ novelId: string }>()
@@ -31,6 +38,20 @@ export function NovelDashboardPage() {
     queryKey: ['entities', novelId],
     queryFn: () => entitiesApi.list(novelId!),
     enabled: !!novelId,
+  })
+
+  const chaptersQuery = useQuery({
+    queryKey: ['chapters', novelId],
+    queryFn: () => chaptersApi.list(novelId!),
+    enabled: !!novelId,
+  })
+
+  const createChapterMutation = useMutation({
+    mutationFn: () => {
+      const nextNumber = (chaptersQuery.data?.reduce((max, c) => Math.max(max, c.chapter_number), 0) ?? 0) + 1
+      return chaptersApi.create(novelId!, { chapter_number: nextNumber })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chapters', novelId] }),
   })
 
   const updateNovelMutation = useMutation({
@@ -166,6 +187,32 @@ export function NovelDashboardPage() {
           </ul>
         </div>
       ))}
+
+      <div className="flex items-center justify-between border-t pt-6">
+        <h2 className="text-lg font-semibold">章節</h2>
+        <button
+          className="rounded bg-purple-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+          disabled={createChapterMutation.isPending}
+          onClick={() => createChapterMutation.mutate()}
+        >
+          + 新增章節
+        </button>
+      </div>
+
+      <ul className="space-y-2">
+        {(chaptersQuery.data ?? []).map((chapter) => (
+          <li key={chapter.id} className="flex items-center justify-between rounded border p-3">
+            <Link
+              to={`/novels/${novelId}/chapters/${chapter.id}/plan`}
+              className="font-medium hover:underline"
+            >
+              第 {chapter.chapter_number} 章 {chapter.title || '（未命名）'}
+            </Link>
+            <span className="text-sm text-gray-500">{CHAPTER_STATUS_LABELS[chapter.status]}</span>
+          </li>
+        ))}
+        {(chaptersQuery.data ?? []).length === 0 && <p className="text-sm text-gray-400">尚無章節</p>}
+      </ul>
     </div>
   )
 }

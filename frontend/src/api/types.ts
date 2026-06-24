@@ -64,3 +64,45 @@ export interface ChatMessage {
   applied: boolean
   created_at: string
 }
+
+export type ChapterStatus = 'planned' | 'drafted' | 'final'
+
+export interface PlanBeat {
+  title: string
+  summary: string
+}
+
+export interface ChapterPlanContent {
+  beats: PlanBeat[]
+}
+
+export interface Chapter {
+  id: string
+  novel_id: string
+  chapter_number: number
+  title: string
+  status: ChapterStatus
+  plan: ChapterPlanContent | null
+  plan_approved_at: string | null
+  prose: string
+  user_direction: string
+  relevant_entity_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ChapterCreate {
+  chapter_number: number
+  title?: string
+}
+
+export interface ChapterUpdate {
+  title?: string
+  user_direction?: string
+  relevant_entity_ids?: string[]
+}
+
+export interface PlanGenerateRequest {
+  user_direction?: string
+  relevant_entity_ids?: string[]
+}
