@@ -27,8 +27,7 @@ Then open `http://localhost:8000` and go to Settings to choose an AI provider:
   lists your locally-pulled models; if the selected one isn't pulled, the app
   automatically retries with another one you have installed.
 
-Novel content is generated mostly in Traditional Chinese (繁體中文); UI chrome is
-English.
+Novel content and UI chrome are both in Traditional Chinese (繁體中文).
 
 Data lives in a Docker volume (`lnovel-data`, mounted at `/app/data`) and persists
 across `docker compose down && docker compose up`.
