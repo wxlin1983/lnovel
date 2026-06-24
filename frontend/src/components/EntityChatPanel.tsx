@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { entityChatApi } from '../api/entityChat'
 
@@ -21,6 +21,7 @@ export function EntityChatPanel({ novelId, entityId }: EntityChatPanelProps) {
   const [streaming, setStreaming] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const applyPatchMutation = useMutation({
     mutationFn: (messageId: string) => entityChatApi.applyPatch(novelId, entityId, messageId),
@@ -33,6 +34,8 @@ export function EntityChatPanel({ novelId, entityId }: EntityChatPanelProps) {
   async function handleSend() {
     const content = draft.trim()
     if (!content || sending) return
+    const controller = new AbortController()
+    abortRef.current = controller
     setSending(true)
     setError(null)
     setPendingUserMessage(content)
@@ -40,27 +43,41 @@ export function EntityChatPanel({ novelId, entityId }: EntityChatPanelProps) {
     setDraft('')
 
     try {
-      await entityChatApi.send(novelId, entityId, content, {
-        onDelta: (chunk) => setStreaming((s) => (s ?? '') + chunk),
-        onDone: () => {
-          queryClient.invalidateQueries({ queryKey: chatKey })
-          setStreaming(null)
-          setPendingUserMessage(null)
-          setSending(false)
+      await entityChatApi.send(
+        novelId,
+        entityId,
+        content,
+        {
+          onDelta: (chunk) => setStreaming((s) => (s ?? '') + chunk),
+          onDone: () => {
+            queryClient.invalidateQueries({ queryKey: chatKey })
+            setStreaming(null)
+            setPendingUserMessage(null)
+            setSending(false)
+          },
+          onError: (msg) => {
+            if (!controller.signal.aborted) setError(msg)
+            setStreaming(null)
+            setPendingUserMessage(null)
+            setSending(false)
+          },
         },
-        onError: (msg) => {
-          setError(msg)
-          setStreaming(null)
-          setPendingUserMessage(null)
-          setSending(false)
-        },
-      })
+        controller.signal,
+      )
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
       setStreaming(null)
       setPendingUserMessage(null)
       setSending(false)
+    } finally {
+      abortRef.current = null
     }
+  }
+
+  function handleStop() {
+    abortRef.current?.abort()
   }
 
   const messages = historyQuery.data ?? []
@@ -137,6 +154,11 @@ export function EntityChatPanel({ novelId, entityId }: EntityChatPanelProps) {
         >
           送出
         </button>
+        {sending && (
+          <button className="rounded bg-gray-300 px-3 py-1 text-sm" onClick={handleStop}>
+            停止
+          </button>
+        )}
       </div>
     </div>
   )

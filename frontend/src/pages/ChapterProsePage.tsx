@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { chaptersApi } from '../api/chapters'
@@ -26,6 +26,7 @@ export function ChapterProsePage() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showRevisions, setShowRevisions] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setProseDraft(null)
@@ -34,30 +35,46 @@ export function ChapterProsePage() {
   }, [chapterId])
 
   async function handleGenerate(regenerate: boolean) {
+    const controller = new AbortController()
+    abortRef.current = controller
     setGenerating(true)
     setError(null)
     setStreaming('')
     try {
-      await chapterProseApi.generate(novelId!, chapterId!, regenerate, {
-        onDelta: (chunk) => setStreaming((s) => (s ?? '') + chunk),
-        onDone: (prose) => {
-          queryClient.invalidateQueries({ queryKey: chapterKey })
-          queryClient.invalidateQueries({ queryKey: ['chapter-prose-revisions', chapterId] })
-          setProseDraft(prose)
-          setStreaming(null)
-          setGenerating(false)
+      await chapterProseApi.generate(
+        novelId!,
+        chapterId!,
+        regenerate,
+        {
+          onDelta: (chunk) => setStreaming((s) => (s ?? '') + chunk),
+          onDone: (prose) => {
+            queryClient.invalidateQueries({ queryKey: chapterKey })
+            queryClient.invalidateQueries({ queryKey: ['chapter-prose-revisions', chapterId] })
+            setProseDraft(prose)
+            setStreaming(null)
+            setGenerating(false)
+          },
+          onError: (msg) => {
+            if (!controller.signal.aborted) setError(msg)
+            setStreaming(null)
+            setGenerating(false)
+          },
         },
-        onError: (msg) => {
-          setError(msg)
-          setStreaming(null)
-          setGenerating(false)
-        },
-      })
+        controller.signal,
+      )
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
       setStreaming(null)
       setGenerating(false)
+    } finally {
+      abortRef.current = null
     }
+  }
+
+  function handleStopGenerate() {
+    abortRef.current?.abort()
   }
 
   const saveMutation = useMutation({
@@ -117,6 +134,11 @@ export function ChapterProsePage() {
             onClick={() => handleGenerate(true)}
           >
             重新生成（保留歷史）
+          </button>
+        )}
+        {generating && (
+          <button className="rounded bg-gray-300 px-3 py-2 text-sm" onClick={handleStopGenerate}>
+            停止生成
           </button>
         )}
       </div>
