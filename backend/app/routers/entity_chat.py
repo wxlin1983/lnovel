@@ -9,7 +9,7 @@ from sqlalchemy import Connection, text
 from sse_starlette import EventSourceResponse
 
 from app.deps import get_db
-from app.llm.openrouter_client import OpenRouterError, stream_chat_completion
+from app.llm.openrouter_client import OpenRouterError, stream_chat_completion_with_fallback
 from app.llm.prompts.entity_improve import build_messages
 from app.routers.entities import _row_to_entity
 from app.schemas.entities import Entity
@@ -111,7 +111,7 @@ def send_message(
     async def event_generator() -> AsyncIterator[dict[str, str]]:
         accumulated = ""
         try:
-            async for chunk in stream_chat_completion(api_key=api_key, model=model, messages=messages):
+            async for chunk in stream_chat_completion_with_fallback(api_key=api_key, model=model, messages=messages):
                 accumulated += chunk
                 yield {"event": "delta", "data": chunk}
         except OpenRouterError as exc:

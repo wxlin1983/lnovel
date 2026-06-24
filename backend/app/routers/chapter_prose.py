@@ -7,7 +7,11 @@ from sqlalchemy import Connection, text
 from sse_starlette import EventSourceResponse
 
 from app.deps import get_db
-from app.llm.openrouter_client import OpenRouterError, complete_chat, stream_chat_completion
+from app.llm.openrouter_client import (
+    OpenRouterError,
+    complete_chat_with_fallback,
+    stream_chat_completion_with_fallback,
+)
 from app.llm.prompts.chapter_prose import build_messages as build_prose_messages
 from app.llm.prompts.rolling_summary import build_messages as build_summary_messages
 from app.llm.token_budget import truncate_chars
@@ -82,7 +86,7 @@ def _generate_prose_response(
     async def event_generator() -> AsyncIterator[dict[str, str]]:
         accumulated = ""
         try:
-            async for chunk in stream_chat_completion(api_key=api_key, model=model, messages=messages):
+            async for chunk in stream_chat_completion_with_fallback(api_key=api_key, model=model, messages=messages):
                 accumulated += chunk
                 yield {"event": "delta", "data": chunk}
         except OpenRouterError as exc:
@@ -156,7 +160,7 @@ async def finalize_chapter(novel_id: str, chapter_id: str, db: Connection = Depe
     messages = build_summary_messages(existing_summary=novel.rolling_summary, finalized_chapter_text=bounded_prose)
 
     try:
-        new_summary = await complete_chat(
+        new_summary = await complete_chat_with_fallback(
             api_key=settings_row.openrouter_api_key, model=settings_row.preferred_model, messages=messages
         )
     except OpenRouterError as exc:

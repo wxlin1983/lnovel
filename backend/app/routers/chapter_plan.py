@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import Connection, text
 
 from app.deps import get_db
-from app.llm.openrouter_client import OpenRouterError, complete_chat
+from app.llm.openrouter_client import OpenRouterError, complete_chat_with_fallback
 from app.llm.prompts.chapter_plan import build_messages
 from app.routers.chapters import _require_chapter, _row_to_chapter
 from app.schemas.chapter_plan import ChapterPlanContent, PlanGenerateRequest, PlanUpdateRequest
@@ -84,7 +84,7 @@ async def _generate_plan_content(db: Connection, novel_id: str, chapter_row) -> 
     last_error: Exception | None = None
     for _ in range(2):
         try:
-            raw = await complete_chat(
+            raw = await complete_chat_with_fallback(
                 api_key=settings_row.openrouter_api_key, model=settings_row.preferred_model, messages=messages
             )
             plan = ChapterPlanContent.model_validate_json(_strip_code_fence(raw))

@@ -8,6 +8,12 @@ export interface SettingsUpdate {
   preferred_model?: string
 }
 
+export interface FreeModel {
+  id: string
+  name: string
+  context_length: number | null
+}
+
 export interface Novel {
   id: string
   title: string

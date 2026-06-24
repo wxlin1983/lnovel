@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { settingsApi } from '../api/settings'
-
-const FREE_MODELS = [
-  'qwen/qwen-2.5-72b-instruct:free',
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'google/gemma-2-9b-it:free',
-  'mistralai/mistral-7b-instruct:free',
-]
+import { modelsApi } from '../api/models'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
+  const { data: freeModels, isLoading: modelsLoading } = useQuery({
+    queryKey: ['models', 'free'],
+    queryFn: modelsApi.listFree,
+    staleTime: 60 * 60 * 1000,
+  })
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
 
@@ -49,13 +48,22 @@ export function SettingsPage() {
           className="w-full rounded border px-3 py-2"
           value={model || data.preferred_model}
           onChange={(e) => setModel(e.target.value)}
+          disabled={modelsLoading}
         >
-          {FREE_MODELS.map((m) => (
-            <option key={m} value={m}>
-              {m}
+          {!freeModels?.some((m) => m.id === data.preferred_model) && (
+            <option value={data.preferred_model}>{data.preferred_model}</option>
+          )}
+          {freeModels?.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
             </option>
           ))}
         </select>
+        <p className="text-xs text-gray-500">
+          {modelsLoading
+            ? '正在從 OpenRouter 取得免費模型清單...'
+            : '清單來自 OpenRouter 目前的免費模型；若選用的模型回報需要付費，系統會自動嘗試清單中的其他免費模型。'}
+        </p>
       </div>
 
       <button

@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from app.config import settings
+from app.llm.model_catalog import free_model_ids
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -87,6 +88,54 @@ async def complete_chat(*, api_key: str, model: str, messages: list[dict[str, st
 
     data = response.json()
     return data["choices"][0]["message"]["content"]
+
+
+async def complete_chat_with_fallback(*, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
+    """Like complete_chat, but on a 402 (insufficient credits / model requires payment) retries
+    through OpenRouter's other free-tier models before giving up."""
+    try:
+        return await complete_chat(api_key=api_key, model=model, messages=messages)
+    except OpenRouterError as exc:
+        if exc.status_code != 402:
+            raise
+        last_exc: OpenRouterError = exc
+        for candidate in await free_model_ids():
+            if candidate == model:
+                continue
+            try:
+                return await complete_chat(api_key=api_key, model=candidate, messages=messages)
+            except OpenRouterError as exc2:
+                last_exc = exc2
+                if exc2.status_code != 402:
+                    raise
+        raise last_exc
+
+
+async def stream_chat_completion_with_fallback(
+    *, api_key: str, model: str, messages: list[dict[str, str]]
+) -> AsyncIterator[str]:
+    """Like stream_chat_completion, but on a 402 from `model` (before any content was yielded),
+    retries through OpenRouter's other free-tier models."""
+    candidates = [model]
+    last_exc: OpenRouterError | None = None
+    tried_fallbacks = False
+    while candidates:
+        candidate = candidates.pop(0)
+        yielded_any = False
+        try:
+            async for chunk in stream_chat_completion(api_key=api_key, model=candidate, messages=messages):
+                yielded_any = True
+                yield chunk
+            return
+        except OpenRouterError as exc:
+            last_exc = exc
+            if yielded_any or exc.status_code != 402:
+                raise
+            if not tried_fallbacks:
+                tried_fallbacks = True
+                candidates = [m for m in await free_model_ids() if m != model]
+    if last_exc is not None:
+        raise last_exc
 
 
 def _mock_complete(messages: list[dict[str, str]]) -> str:
