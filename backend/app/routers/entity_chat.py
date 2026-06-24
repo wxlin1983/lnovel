@@ -9,8 +9,9 @@ from sqlalchemy import Connection, text
 from sse_starlette import EventSourceResponse
 
 from app.deps import get_db
-from app.llm.openrouter_client import OpenRouterError, stream_chat_completion_with_fallback
+from app.llm.llm_client import LLMError, stream_chat_completion_with_fallback
 from app.llm.prompts.entity_improve import build_messages
+from app.llm.provider_config import load_provider_config
 from app.routers.entities import _row_to_entity
 from app.schemas.entities import Entity
 from app.schemas.entity_chat import ChatMessage, ChatMessageCreate
@@ -71,11 +72,7 @@ def send_message(
     entity_row = _require_entity(db, novel_id, entity_id)
     novel_row = db.execute(text("SELECT * FROM novels WHERE id = :id"), {"id": novel_id}).one()
 
-    settings_row = db.execute(
-        text("SELECT openrouter_api_key, preferred_model FROM settings WHERE id = 1")
-    ).one()
-    if not settings_row.openrouter_api_key:
-        raise HTTPException(status_code=400, detail="尚未設定 OpenRouter API 金鑰")
+    cfg = load_provider_config(db)
 
     history_rows = db.execute(
         text(
@@ -105,16 +102,13 @@ def send_message(
         linked_summaries=[],
         history=[*history, {"role": "user", "content": payload.content}],
     )
-    model = settings_row.preferred_model
-    api_key = settings_row.openrouter_api_key
-
     async def event_generator() -> AsyncIterator[dict[str, str]]:
         accumulated = ""
         try:
-            async for chunk in stream_chat_completion_with_fallback(api_key=api_key, model=model, messages=messages):
+            async for chunk in stream_chat_completion_with_fallback(cfg, messages):
                 accumulated += chunk
                 yield {"event": "delta", "data": chunk}
-        except OpenRouterError as exc:
+        except LLMError as exc:
             yield {"event": "error", "data": exc.message}
             return
 

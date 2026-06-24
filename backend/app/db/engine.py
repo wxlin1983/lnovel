@@ -3,7 +3,7 @@ from functools import lru_cache
 from sqlalchemy import Engine, create_engine, event
 
 from app.config import settings
-from app.db.migrations import apply_schema
+from app.db.migrations import apply_schema, apply_settings_migrations
 
 
 @lru_cache
@@ -18,4 +18,5 @@ def get_engine() -> Engine:
         cursor.close()
 
     apply_schema(engine)
+    apply_settings_migrations(engine)
     return engine

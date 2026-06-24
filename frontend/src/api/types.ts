@@ -1,14 +1,20 @@
+export type Provider = 'openrouter' | 'ollama'
+
 export interface SettingsOut {
+  provider: Provider
   has_key: boolean
   preferred_model: string
+  ollama_base_url: string
 }
 
 export interface SettingsUpdate {
+  provider?: Provider
   openrouter_api_key?: string
   preferred_model?: string
+  ollama_base_url?: string
 }
 
-export interface FreeModel {
+export interface ModelOption {
   id: string
   name: string
   context_length: number | null

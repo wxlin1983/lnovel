@@ -10,7 +10,9 @@
 
 **Novel content language**: the generated story content — chapter plans, prose, rolling summaries, and the entity-improvement chat's prose-facing output — should be **mostly Traditional Chinese**. Enforced at the prompt level (every prompt builder's system instruction includes "請以繁體中文回覆/寫作"); JSON keys/status enums stay in English since those are code-facing. UI chrome (buttons, labels, nav) stays in English for v1 unless asked otherwise. Not all free OpenRouter models handle Chinese well, so the free-model allowlist (`backend/app/llm/models.py`) should preference models with known solid Chinese capability (e.g. Qwen/GLM free-tier variants, alongside Llama/Gemma/Mistral), with the Settings page letting the user swap models if one's Chinese output quality is poor.
 
-**Backend**: **FastAPI** + **SQLAlchemy Core (sync)** — not the full ORM — against a single SQLite file (`data/lnovel.db`, WAL mode). Core query-building gives typed `select`/`insert`/`update` without ORM session-lifecycle overhead, and there's no longer a multi-engine-per-user concern since there's exactly one DB. Hand-rolled `schema.sql` + a tiny migrations runner (no Alembic needed for this table count). **Pydantic v2** for all request/response validation. The OpenRouter API key lives in a single-row `settings` table (key, preferred_model) edited via a Settings page — no auth in front of it (single-user app), but still never echoed back in any GET response, only a `has_key: bool`. **httpx** (async) to call OpenRouter, including streaming; FastAPI's `StreamingResponse`/`sse-starlette` to relay streaming completions to the frontend. Served via `uvicorn`.
+**Backend**: **FastAPI** + **SQLAlchemy Core (sync)** — not the full ORM — against a single SQLite file (`data/lnovel.db`, WAL mode). Core query-building gives typed `select`/`insert`/`update` without ORM session-lifecycle overhead, and there's no longer a multi-engine-per-user concern since there's exactly one DB. Hand-rolled `schema.sql` + a tiny migrations runner (no Alembic needed for this table count; adding columns to an already-existing table goes through an idempotent `PRAGMA table_info`-guarded `ALTER TABLE` step in `migrations.py`, since `CREATE TABLE IF NOT EXISTS` alone only covers fresh databases). **Pydantic v2** for all request/response validation. Settings live in a single-row `settings` table (`provider`, OpenRouter key, preferred model, Ollama base URL) edited via a Settings page — no auth in front of it (single-user app), but the key is still never echoed back in any GET response, only a `has_key: bool`. **httpx** (async) to call the configured LLM provider, including streaming; FastAPI's `StreamingResponse`/`sse-starlette` to relay streaming completions to the frontend. Served via `uvicorn`.
+
+**LLM provider abstraction**: the app supports two interchangeable providers — **OpenRouter** (cloud, free-tier models, requires an API key) and a **local Ollama** instance (no key, reachable via a user-configured base URL, defaulting to `http://host.docker.internal:11434` so the container can reach Ollama running on the Docker host). Both speak the same OpenAI-compatible chat-completions JSON/SSE shape, so `app/llm/llm_client.py` implements the HTTP/parsing logic once, parameterized by `endpoint_url`/`api_key` rather than hardcoded to one provider. `app/llm/provider_config.py::load_provider_config()` is the single place that reads the `settings` row and resolves it into a `ProviderConfig` (endpoint URL, key, model, which HTTP status means "try a different model" — 402/payment-required for OpenRouter, 404/not-pulled for Ollama — plus a callable to fetch that provider's fallback model candidates). All call sites (`chapter_plan.py`, `chapter_prose.py`, `entity_chat.py`) go through this one function instead of duplicating provider-switch logic. `app/llm/model_catalog.py` (OpenRouter's free-model list, cached 1h) and `app/llm/ollama_catalog.py` (Ollama's locally-pulled models, via `GET {base_url}/api/tags`, uncached) are the two catalog sources behind `GET /api/models`.
 
 **Frontend**: Vite + React + TS, `react-router-dom`, `@tanstack/react-query` for server state, `react-hook-form`+zod for entity forms, `@microsoft/fetch-event-source` for consuming POST-based SSE streams, Tailwind for styling.
 
@@ -18,7 +20,7 @@
 
 ### Data model (single SQLite DB, `data/lnovel.db`)
 
-- `settings` (single row: id=1, openrouter_api_key, preferred_model)
+- `settings` (single row: id=1, provider, openrouter_api_key, preferred_model, ollama_base_url)
 - `novels` (id, title, premise, **rolling_summary** — the compressed "story so far")
 - `entities` (id, novel_id, type: character|location|storyline, name, **fields_json**, description) — semi-structured per-type fields stored as JSON text rather than per-type tables
 - `entity_chat_messages` (id, entity_id, role, content, proposed_patch_json, applied) — backs the "Improve with AI" chat + explicit accept-patch step
@@ -42,8 +44,10 @@ backend/
 │   ├── routers/
 │   │   ├── settings.py, novels.py, entities.py, entity_chat.py, chapters.py, chapter_plan.py, chapter_prose.py
 │   ├── llm/
-│   │   ├── openrouter_client.py  # httpx streaming/non-streaming + error mapping
-│   │   ├── models.py             # free-model allowlist, Chinese-capable preference
+│   │   ├── llm_client.py         # httpx streaming/non-streaming + error mapping, provider-agnostic
+│   │   ├── provider_config.py    # resolves `settings` row -> ProviderConfig (openrouter | ollama)
+│   │   ├── model_catalog.py      # OpenRouter free-model list (cached)
+│   │   ├── ollama_catalog.py     # local Ollama installed-model list (uncached)
 │   │   └── prompts/
 │   │       ├── entity_improve.py, chapter_plan.py, chapter_prose.py, rolling_summary.py
 │   └── schemas/                 # pydantic models, mirrors the data model above
@@ -53,7 +57,8 @@ backend/
 
 ### API surface (all under `/api`, no auth)
 
-- Settings: `GET/PUT /api/settings` (openrouter key write-only / `has_key` boolean, preferred model)
+- Settings: `GET/PUT /api/settings` (provider, openrouter key write-only / `has_key` boolean, preferred model, Ollama base URL)
+- Models: `GET /api/models` (optional `?provider=` override) — lists OpenRouter's free models or Ollama's locally-pulled models, depending on the active/queried provider
 - Novels: standard CRUD
 - Entities: standard CRUD, scoped to a novel
 - Entity chat: `GET/POST .../entities/:id/chat` (POST streams via SSE, persists messages + any proposed JSON patch), `POST .../chat/:messageId/apply-patch` (explicit user-accept step that merges the patch into `fields_json`)
@@ -71,7 +76,7 @@ Never send the full manuscript. Each AI action assembles a deliberately scoped p
 
 ### Notes
 
-No auth means no CSRF/session concerns to design around, but the app should still not be exposed to the open internet without the operator putting it behind their own access control (reverse proxy + basic auth, VPN, etc.) — worth a one-line README callout since the API has zero built-in access control by design. Never log the OpenRouter key. `data/` (the SQLite file) gitignored and Docker-volume-mounted so it isn't lost on rebuilds.
+No auth means no CSRF/session concerns to design around, but the app should still not be exposed to the open internet without the operator putting it behind their own access control (reverse proxy + basic auth, VPN, etc.) — worth a one-line README callout since the API has zero built-in access control by design. Never log the OpenRouter key. `data/` (the SQLite file) gitignored and Docker-volume-mounted so it isn't lost on rebuilds. `docker-compose.yml` sets `extra_hosts: host.docker.internal:host-gateway` so the container can reach a local Ollama on the Docker host even on native Linux (Docker Desktop on Mac/Windows resolves that hostname automatically; native Linux Docker doesn't, without this entry).
 
 ## Phased build order
 
@@ -85,7 +90,8 @@ No auth means no CSRF/session concerns to design around, but the app should stil
 
 - `backend/app/db/engine.py` — single SQLite engine setup (WAL mode, path from config)
 - `backend/app/db/schema.sql` — full data model
-- `backend/app/llm/openrouter_client.py` — streaming/non-streaming OpenRouter HTTP integration + error mapping
+- `backend/app/llm/llm_client.py` — streaming/non-streaming HTTP integration + error mapping, shared by both providers
+- `backend/app/llm/provider_config.py` — resolves the `settings` row into a provider-agnostic `ProviderConfig`
 - `backend/app/llm/prompts/{chapter_plan,chapter_prose,rolling_summary}.py` — the context-budgeting + Traditional Chinese output logic
 - `backend/app/routers/chapter_prose.py` — ties together approval gating, SSE streaming, status transitions, finalize→summary update
 - `Dockerfile`, `docker-compose.yml` — multi-stage build + single-port deployment with persistent data volume

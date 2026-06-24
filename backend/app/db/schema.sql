@@ -1,7 +1,9 @@
 CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
+    provider TEXT NOT NULL DEFAULT 'openrouter',
     openrouter_api_key TEXT,
-    preferred_model TEXT NOT NULL DEFAULT 'qwen/qwen-2.5-72b-instruct:free'
+    preferred_model TEXT NOT NULL DEFAULT 'qwen/qwen-2.5-72b-instruct:free',
+    ollama_base_url TEXT NOT NULL DEFAULT 'http://host.docker.internal:11434'
 );
 INSERT OR IGNORE INTO settings (id) VALUES (1);
 

@@ -7,8 +7,9 @@ from pydantic import ValidationError
 from sqlalchemy import Connection, text
 
 from app.deps import get_db
-from app.llm.openrouter_client import OpenRouterError, complete_chat_with_fallback
+from app.llm.llm_client import LLMError, complete_chat_with_fallback
 from app.llm.prompts.chapter_plan import build_messages
+from app.llm.provider_config import load_provider_config
 from app.routers.chapters import _require_chapter, _row_to_chapter
 from app.schemas.chapter_plan import ChapterPlanContent, PlanGenerateRequest, PlanUpdateRequest
 from app.schemas.chapters import Chapter
@@ -61,11 +62,7 @@ def _gather_plan_context(db: Connection, novel_id: str, chapter_row):
 
 
 async def _generate_plan_content(db: Connection, novel_id: str, chapter_row) -> dict:
-    settings_row = db.execute(
-        text("SELECT openrouter_api_key, preferred_model FROM settings WHERE id = 1")
-    ).one()
-    if not settings_row.openrouter_api_key:
-        raise HTTPException(status_code=400, detail="尚未設定 OpenRouter API 金鑰")
+    cfg = load_provider_config(db)
 
     novel, storylines, characters, previous_plan_summary, previous_prose_excerpt = _gather_plan_context(
         db, novel_id, chapter_row
@@ -84,15 +81,13 @@ async def _generate_plan_content(db: Connection, novel_id: str, chapter_row) -> 
     last_error: Exception | None = None
     for _ in range(2):
         try:
-            raw = await complete_chat_with_fallback(
-                api_key=settings_row.openrouter_api_key, model=settings_row.preferred_model, messages=messages
-            )
+            raw = await complete_chat_with_fallback(cfg, messages)
             plan = ChapterPlanContent.model_validate_json(_strip_code_fence(raw))
             return plan.model_dump()
         except (ValidationError, json.JSONDecodeError) as exc:
             last_error = exc
             continue
-        except OpenRouterError:
+        except LLMError:
             raise
 
     raise HTTPException(status_code=502, detail=f"AI 回傳的章節大綱格式錯誤：{last_error}")

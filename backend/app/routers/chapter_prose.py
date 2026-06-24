@@ -7,13 +7,10 @@ from sqlalchemy import Connection, text
 from sse_starlette import EventSourceResponse
 
 from app.deps import get_db
-from app.llm.openrouter_client import (
-    OpenRouterError,
-    complete_chat_with_fallback,
-    stream_chat_completion_with_fallback,
-)
+from app.llm.llm_client import LLMError, complete_chat_with_fallback, stream_chat_completion_with_fallback
 from app.llm.prompts.chapter_prose import build_messages as build_prose_messages
 from app.llm.prompts.rolling_summary import build_messages as build_summary_messages
+from app.llm.provider_config import load_provider_config
 from app.llm.token_budget import truncate_chars
 from app.routers.chapters import _require_chapter, _row_to_chapter
 from app.schemas.chapter_prose import ChapterRevision, ProseGenerateRequest, ProseUpdateRequest
@@ -65,11 +62,7 @@ def _generate_prose_response(
         db.commit()
         chapter_row = _require_chapter(db, novel_id, chapter_id)
 
-    settings_row = db.execute(
-        text("SELECT openrouter_api_key, preferred_model FROM settings WHERE id = 1")
-    ).one()
-    if not settings_row.openrouter_api_key:
-        raise HTTPException(status_code=400, detail="尚未設定 OpenRouter API 金鑰")
+    cfg = load_provider_config(db)
 
     novel, beats, entities_detail, previous_prose_excerpt = _gather_prose_context(db, novel_id, chapter_row)
     messages = build_prose_messages(
@@ -80,16 +73,14 @@ def _generate_prose_response(
         previous_prose_excerpt=previous_prose_excerpt,
         user_direction=chapter_row.user_direction,
     )
-    model = settings_row.preferred_model
-    api_key = settings_row.openrouter_api_key
 
     async def event_generator() -> AsyncIterator[dict[str, str]]:
         accumulated = ""
         try:
-            async for chunk in stream_chat_completion_with_fallback(api_key=api_key, model=model, messages=messages):
+            async for chunk in stream_chat_completion_with_fallback(cfg, messages):
                 accumulated += chunk
                 yield {"event": "delta", "data": chunk}
-        except OpenRouterError as exc:
+        except LLMError as exc:
             yield {"event": "error", "data": exc.message}
             return
 
@@ -149,21 +140,15 @@ async def finalize_chapter(novel_id: str, chapter_id: str, db: Connection = Depe
     if not chapter_row.prose:
         raise HTTPException(status_code=400, detail="本章尚無正文，無法定稿")
 
-    settings_row = db.execute(
-        text("SELECT openrouter_api_key, preferred_model FROM settings WHERE id = 1")
-    ).one()
-    if not settings_row.openrouter_api_key:
-        raise HTTPException(status_code=400, detail="尚未設定 OpenRouter API 金鑰")
+    cfg = load_provider_config(db)
 
     novel = db.execute(text("SELECT * FROM novels WHERE id = :id"), {"id": novel_id}).one()
     bounded_prose = truncate_chars(chapter_row.prose, ROLLING_SUMMARY_INPUT_CAP_CHARS)
     messages = build_summary_messages(existing_summary=novel.rolling_summary, finalized_chapter_text=bounded_prose)
 
     try:
-        new_summary = await complete_chat_with_fallback(
-            api_key=settings_row.openrouter_api_key, model=settings_row.preferred_model, messages=messages
-        )
-    except OpenRouterError as exc:
+        new_summary = await complete_chat_with_fallback(cfg, messages)
+    except LLMError as exc:
         raise HTTPException(status_code=502, detail=exc.message) from exc
 
     db.execute(

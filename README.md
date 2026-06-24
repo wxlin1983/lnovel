@@ -3,7 +3,7 @@
 AI-assisted novel writing app: build structured worldbuilding (characters/locations/
 storylines), refine entities by chatting with an LLM, review and approve an
 LLM-generated chapter beat-plan, then generate chapter prose from that plan — aiming
-to cover a full book-length novel despite using small-context free OpenRouter models.
+to cover a full book-length novel despite using small-context free models.
 
 Single-user, no accounts. See `docs/design.md` for the full design.
 
@@ -13,9 +13,22 @@ Single-user, no accounts. See `docs/design.md` for the full design.
 docker compose up --build
 ```
 
-Then open `http://localhost:8000`, go to Settings, and enter your own OpenRouter API
-key (https://openrouter.ai). Novel content is generated mostly in Traditional Chinese
-(繁體中文); UI chrome is English.
+Then open `http://localhost:8000` and go to Settings to choose an AI provider:
+
+- **OpenRouter** (default): enter your own API key (https://openrouter.ai). The model
+  dropdown lists OpenRouter's current free-tier models; if your chosen model ever
+  reports it needs payment, the app automatically retries with another free model.
+- **Local Ollama**: no API key needed. Install [Ollama](https://ollama.com), run
+  `ollama serve`, pull at least one model (e.g. `ollama pull llama3.2`), then switch
+  the provider to Ollama in Settings. The default base URL,
+  `http://host.docker.internal:11434`, reaches Ollama running on the same machine as
+  the Docker host (the bundled `docker-compose.yml` maps that hostname for you, so
+  this works out of the box on Linux too, not just Docker Desktop). The model dropdown
+  lists your locally-pulled models; if the selected one isn't pulled, the app
+  automatically retries with another one you have installed.
+
+Novel content is generated mostly in Traditional Chinese (繁體中文); UI chrome is
+English.
 
 Data lives in a Docker volume (`lnovel-data`, mounted at `/app/data`) and persists
 across `docker compose down && docker compose up`.
@@ -30,7 +43,7 @@ reverse proxy with basic auth, a VPN, etc.).
 ## Development
 
 - `backend/` — FastAPI + SQLAlchemy Core over SQLite, managed with `uv`. Set
-  `LNOVEL_LLM_MOCK=1` to exercise the OpenRouter-backed endpoints without a real key.
-  Smoke scripts live in `backend/scripts/`.
+  `LNOVEL_LLM_MOCK=1` to exercise the AI-backed endpoints without a real key or a
+  running Ollama. Smoke scripts live in `backend/scripts/`.
 - `frontend/` — React + Vite + TS, managed with `pnpm`. `pnpm run dev` proxies `/api`
   to a backend running on `:8000` (see `vite.config.ts`).

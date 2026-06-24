@@ -1,6 +1,7 @@
 import { api } from './client'
-import type { FreeModel } from './types'
+import type { ModelOption, Provider } from './types'
 
 export const modelsApi = {
-  listFree: () => api.get<FreeModel[]>('/models/free'),
+  list: (provider?: Provider) =>
+    api.get<ModelOption[]>(provider ? `/models?provider=${provider}` : '/models'),
 }
