@@ -64,9 +64,10 @@ async def _mock_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
 
 
 async def complete_chat(*, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
-    """Non-streaming completion. Used for structured-JSON generation (e.g. chapter plans)."""
+    """Non-streaming completion. Used for structured-JSON generation (chapter plans) and
+    short free-text generation (rolling summary)."""
     if settings.llm_mock:
-        return _mock_complete()
+        return _mock_complete(messages)
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model, "messages": messages, "stream": False}
@@ -88,14 +89,17 @@ async def complete_chat(*, api_key: str, model: str, messages: list[dict[str, st
     return data["choices"][0]["message"]["content"]
 
 
-def _mock_complete() -> str:
-    return json.dumps(
-        {
-            "beats": [
-                {"title": "模擬章節開場", "summary": "（模擬）這是自動生成的測試節拍：建立場景與衝突的種子。"},
-                {"title": "模擬中段衝突", "summary": "（模擬）測試節拍：角色之間的衝突升溫。"},
-                {"title": "模擬章節收尾", "summary": "（模擬）測試節拍：留下懸念，銜接下一章。"},
-            ]
-        },
-        ensure_ascii=False,
-    )
+def _mock_complete(messages: list[dict[str, str]]) -> str:
+    system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+    if "JSON" in system_content:
+        return json.dumps(
+            {
+                "beats": [
+                    {"title": "模擬章節開場", "summary": "（模擬）這是自動生成的測試節拍：建立場景與衝突的種子。"},
+                    {"title": "模擬中段衝突", "summary": "（模擬）測試節拍：角色之間的衝突升溫。"},
+                    {"title": "模擬章節收尾", "summary": "（模擬）測試節拍：留下懸念，銜接下一章。"},
+                ]
+            },
+            ensure_ascii=False,
+        )
+    return "（模擬摘要）這是自動生成的測試故事摘要，用於確認 rolling_summary 更新流程正常運作。"

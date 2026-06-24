@@ -93,9 +93,17 @@ export function ChapterPlanPage() {
       </Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">第 {chapter.chapter_number} 章大綱</h1>
-        <span className="rounded bg-gray-100 px-2 py-1 text-sm text-gray-600">
-          {chapter.plan_approved_at ? `已核准於 ${chapter.plan_approved_at}` : '尚未核准'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-gray-100 px-2 py-1 text-sm text-gray-600">
+            {chapter.plan_approved_at ? `已核准於 ${chapter.plan_approved_at}` : '尚未核准'}
+          </span>
+          <Link
+            to={`/novels/${novelId}/chapters/${chapterId}/prose`}
+            className="rounded bg-gray-100 px-2 py-1 text-sm text-purple-600 underline"
+          >
+            前往正文 →
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-2">

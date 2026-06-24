@@ -106,3 +106,14 @@ export interface PlanGenerateRequest {
   user_direction?: string
   relevant_entity_ids?: string[]
 }
+
+export interface ProseGenerateRequest {
+  user_direction?: string
+}
+
+export interface ChapterRevision {
+  id: string
+  chapter_id: string
+  content: string
+  created_at: string
+}
