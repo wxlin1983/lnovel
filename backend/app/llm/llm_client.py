@@ -65,17 +65,26 @@ async def _mock_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
 
 
 async def complete_chat(
-    *, endpoint_url: str, api_key: str | None, model: str, messages: list[dict[str, str]]
+    *,
+    endpoint_url: str,
+    api_key: str | None,
+    model: str,
+    messages: list[dict[str, str]],
+    response_format: dict | None = None,
 ) -> str:
     """Non-streaming completion. Used for structured-JSON generation (chapter plans) and
-    short free-text generation (rolling summary)."""
+    short free-text generation (rolling summary). `response_format` (OpenAI-style
+    json_schema) grammar-constrains the output when the provider supports it — see
+    ProviderConfig.supports_json_schema."""
     if settings.llm_mock:
         return _mock_complete(messages)
 
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    payload = {"model": model, "messages": messages, "stream": False}
+    payload: dict = {"model": model, "messages": messages, "stream": False}
+    if response_format is not None:
+        payload["response_format"] = response_format
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -94,12 +103,21 @@ async def complete_chat(
     return data["choices"][0]["message"]["content"]
 
 
-async def complete_chat_with_fallback(cfg: ProviderConfig, messages: list[dict[str, str]]) -> str:
+async def complete_chat_with_fallback(
+    cfg: ProviderConfig, messages: list[dict[str, str]], response_format: dict | None = None
+) -> str:
     """Like complete_chat, but on `cfg.fallback_status` (e.g. OpenRouter's 402 "payment
     required", or Ollama's 404 "model not pulled") retries through `cfg.list_fallback_candidates()`
-    before giving up."""
+    before giving up. `response_format` is only forwarded if `cfg.supports_json_schema`."""
+    format_arg = response_format if cfg.supports_json_schema else None
     try:
-        return await complete_chat(endpoint_url=cfg.endpoint_url, api_key=cfg.api_key, model=cfg.model, messages=messages)
+        return await complete_chat(
+            endpoint_url=cfg.endpoint_url,
+            api_key=cfg.api_key,
+            model=cfg.model,
+            messages=messages,
+            response_format=format_arg,
+        )
     except LLMError as exc:
         if exc.status_code != cfg.fallback_status:
             raise
@@ -109,7 +127,11 @@ async def complete_chat_with_fallback(cfg: ProviderConfig, messages: list[dict[s
                 continue
             try:
                 return await complete_chat(
-                    endpoint_url=cfg.endpoint_url, api_key=cfg.api_key, model=candidate, messages=messages
+                    endpoint_url=cfg.endpoint_url,
+                    api_key=cfg.api_key,
+                    model=candidate,
+                    messages=messages,
+                    response_format=format_arg,
                 )
             except LLMError as exc2:
                 last_exc = exc2

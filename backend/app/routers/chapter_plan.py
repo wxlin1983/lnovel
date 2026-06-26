@@ -7,6 +7,7 @@ from sqlalchemy import Connection, text
 
 from app.deps import get_db
 from app.llm.code_fence import strip_code_fence
+from app.llm.json_schema import json_schema_response_format
 from app.llm.llm_client import LLMError, complete_chat_with_fallback
 from app.llm.prompts.chapter_plan import build_messages
 from app.llm.provider_config import load_provider_config
@@ -71,10 +72,12 @@ async def _generate_plan_content(db: Connection, novel_id: str, chapter_row) -> 
         user_direction=chapter_row.user_direction,
     )
 
+    response_format = json_schema_response_format(ChapterPlanContent, name="chapter_plan")
+
     last_error: Exception | None = None
     for _ in range(2):
         try:
-            raw = await complete_chat_with_fallback(cfg, messages)
+            raw = await complete_chat_with_fallback(cfg, messages, response_format=response_format)
             plan = ChapterPlanContent.model_validate_json(strip_code_fence(raw))
             return plan.model_dump()
         except (ValidationError, json.JSONDecodeError) as exc:

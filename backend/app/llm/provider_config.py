@@ -21,6 +21,11 @@ class ProviderConfig:
     model: str
     fallback_status: int
     list_fallback_candidates: Callable[[], Awaitable[list[str]]]
+    # Whether this provider reliably honors an OpenAI-style `response_format:
+    # json_schema` (grammar-constrained output). Confirmed working against Ollama's
+    # OpenAI-compatible endpoint; not assumed for arbitrary free OpenRouter models,
+    # some of which error or ignore unrecognized request fields.
+    supports_json_schema: bool
 
 
 def load_provider_config(db: Connection) -> ProviderConfig:
@@ -39,6 +44,7 @@ def load_provider_config(db: Connection) -> ProviderConfig:
             model=row.preferred_model,
             fallback_status=404,
             list_fallback_candidates=lambda: ollama_model_ids(row.ollama_base_url),
+            supports_json_schema=True,
         )
 
     if not row.openrouter_api_key:
@@ -49,4 +55,5 @@ def load_provider_config(db: Connection) -> ProviderConfig:
         model=row.preferred_model,
         fallback_status=402,
         list_fallback_candidates=free_model_ids,
+        supports_json_schema=False,
     )

@@ -6,6 +6,7 @@ from sqlalchemy import Connection, text
 
 from app.deps import get_db
 from app.llm.code_fence import strip_code_fence
+from app.llm.json_schema import json_schema_response_format
 from app.llm.llm_client import LLMError, complete_chat_with_fallback
 from app.llm.prompts.book_outline import build_messages
 from app.llm.provider_config import load_provider_config
@@ -48,10 +49,14 @@ async def generate_outline(
         user_direction=payload.user_direction,
     )
 
+    response_format = json_schema_response_format(
+        OutlineContent, name="outline", array_field="chapters", exact_count=payload.chapter_count
+    )
+
     last_error: Exception | None = None
     for _ in range(2):
         try:
-            raw = await complete_chat_with_fallback(cfg, messages)
+            raw = await complete_chat_with_fallback(cfg, messages, response_format=response_format)
             outline = OutlineContent.model_validate_json(strip_code_fence(raw))
             _save_outline(db, novel_id, outline)
             return _row_to_novel(_require_novel(db, novel_id))
