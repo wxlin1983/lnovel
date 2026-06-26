@@ -1,9 +1,26 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { settingsApi } from '../api/settings'
 import { modelsApi } from '../api/models'
 import type { Provider } from '../api/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { PageLoading } from '@/components/PageLoading'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
@@ -13,6 +30,7 @@ export function SettingsPage() {
   const [model, setModel] = useState('')
   const [provider, setProvider] = useState<Provider | ''>('')
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
+  const [confirmClearKey, setConfirmClearKey] = useState(false)
 
   const effectiveProvider = provider || data?.provider
   const hasChanges = provider !== '' || apiKey !== '' || model !== '' || ollamaBaseUrl !== ''
@@ -30,12 +48,17 @@ export function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
       queryClient.invalidateQueries({ queryKey: ['models'] })
       resetDrafts()
+      toast.success('已儲存設定')
     },
   })
 
   const clearKeyMutation = useMutation({
     mutationFn: () => settingsApi.update({ openrouter_api_key: '' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      setConfirmClearKey(false)
+      toast.success('已清除金鑰')
+    },
   })
 
   const testConnection = useMutation({
@@ -61,140 +84,133 @@ export function SettingsPage() {
     testConnection.reset()
   }
 
-  if (isLoading || !data) return <p className="p-6">載入中...</p>
+  if (isLoading || !data) return <PageLoading />
 
   const currentProvider = provider || data.provider
   const modelMissing = !modelsLoading && !modelOptions?.some((m) => m.id === data.preferred_model)
 
   return (
     <div className="mx-auto max-w-lg space-y-6 p-6">
-      <Link to="/" className="text-sm text-purple-600 underline">
-        ← 返回小說列表
-      </Link>
-
       <h1 className="text-2xl font-semibold">設定</h1>
 
-      <div className="space-y-4 rounded border p-4">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">AI 服務提供者</label>
-          <select
-            className="w-full rounded border px-3 py-2"
-            value={currentProvider}
-            onChange={(e) => handleProviderChange(e.target.value as Provider)}
-          >
-            <option value="openrouter">OpenRouter</option>
-            <option value="ollama">本地 Ollama</option>
-          </select>
-        </div>
-
-        {currentProvider === 'openrouter' ? (
+      <Card>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium">OpenRouter API Key</label>
-            <p className="text-sm text-gray-500">
-              目前狀態：{data.has_key ? '已設定金鑰' : '尚未設定金鑰'}
-            </p>
-            <div className="flex gap-2">
-              <input
-                type={showKey ? 'text' : 'password'}
-                placeholder="sk-or-..."
-                className="w-full rounded border px-3 py-2"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-              <button
-                type="button"
-                className="shrink-0 rounded border px-3 text-sm text-gray-600"
-                onClick={() => setShowKey((v) => !v)}
-              >
-                {showKey ? '隱藏' : '顯示'}
-              </button>
-            </div>
-            {data.has_key && (
-              <button
-                type="button"
-                className="text-sm text-red-600 underline disabled:opacity-50"
-                disabled={clearKeyMutation.isPending}
-                onClick={() => {
-                  if (window.confirm('確定要清除已儲存的 API Key 嗎？')) clearKeyMutation.mutate()
-                }}
-              >
-                清除金鑰
-              </button>
-            )}
-            {clearKeyMutation.isError && (
-              <p className="text-sm text-red-600">{(clearKeyMutation.error as Error).message}</p>
-            )}
+            <Label>AI 服務提供者</Label>
+            <Select value={currentProvider} onValueChange={(v) => handleProviderChange(v as Provider)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openrouter">OpenRouter</SelectItem>
+                <SelectItem value="ollama">本地 Ollama</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">Ollama 位址</label>
-            <p className="text-sm text-gray-500">本地 Ollama 不需要 API 金鑰，但容器需能連到此位址。</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="http://host.docker.internal:11434"
-                className="w-full rounded border px-3 py-2"
-                value={ollamaBaseUrl || data.ollama_base_url}
-                onChange={(e) => {
-                  setOllamaBaseUrl(e.target.value)
-                  testConnection.reset()
-                }}
-              />
-              <button
-                type="button"
-                className="shrink-0 rounded border px-3 text-sm text-gray-600 disabled:opacity-50"
-                disabled={testConnection.isPending}
-                onClick={() => testConnection.mutate()}
-              >
-                {testConnection.isPending ? '測試中...' : '測試連線'}
-              </button>
+
+          {currentProvider === 'openrouter' ? (
+            <div className="space-y-2">
+              <Label htmlFor="api-key">OpenRouter API Key</Label>
+              <p className="text-sm text-muted-foreground">目前狀態：{data.has_key ? '已設定金鑰' : '尚未設定金鑰'}</p>
+              <div className="flex gap-2">
+                <Input
+                  id="api-key"
+                  type={showKey ? 'text' : 'password'}
+                  placeholder="sk-or-..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+                <Button type="button" variant="outline" className="shrink-0" onClick={() => setShowKey((v) => !v)}>
+                  {showKey ? '隱藏' : '顯示'}
+                </Button>
+              </div>
+              {data.has_key && (
+                <button
+                  type="button"
+                  className="text-sm text-destructive underline disabled:opacity-50"
+                  disabled={clearKeyMutation.isPending}
+                  onClick={() => setConfirmClearKey(true)}
+                >
+                  清除金鑰
+                </button>
+              )}
+              {clearKeyMutation.isError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{(clearKeyMutation.error as Error).message}</AlertDescription>
+                </Alert>
+              )}
             </div>
-            {testConnection.isSuccess && (
-              <p className="text-sm text-green-600">
-                ✓ 連線成功，找到 {testConnection.data.length} 個模型
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="ollama-url">Ollama 位址</Label>
+              <p className="text-sm text-muted-foreground">本地 Ollama 不需要 API 金鑰，但容器需能連到此位址。</p>
+              <div className="flex gap-2">
+                <Input
+                  id="ollama-url"
+                  type="text"
+                  placeholder="http://host.docker.internal:11434"
+                  value={ollamaBaseUrl || data.ollama_base_url}
+                  onChange={(e) => {
+                    setOllamaBaseUrl(e.target.value)
+                    testConnection.reset()
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={testConnection.isPending}
+                  onClick={() => testConnection.mutate()}
+                >
+                  {testConnection.isPending ? '測試中...' : '測試連線'}
+                </Button>
+              </div>
+              {testConnection.isSuccess && (
+                <p className="text-sm text-green-600">✓ 連線成功，找到 {testConnection.data.length} 個模型</p>
+              )}
+              {testConnection.isError && (
+                <Alert variant="destructive">
+                  <AlertDescription>✕ {(testConnection.error as Error).message}</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>偏好模型</Label>
+            <Select value={model || data.preferred_model} onValueChange={setModel} disabled={modelsLoading}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {!modelOptions?.some((m) => m.id === data.preferred_model) && (
+                  <SelectItem value={data.preferred_model}>{data.preferred_model}</SelectItem>
+                )}
+                {modelOptions?.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {modelsLoading
+                ? '正在取得模型清單...'
+                : currentProvider === 'openrouter'
+                  ? '清單來自 OpenRouter 目前的免費模型；若選用的模型回報需要付費，系統會自動嘗試清單中的其他免費模型。'
+                  : '清單來自本地 Ollama 已安裝的模型；若選用的模型尚未安裝，系統會自動嘗試其他已安裝的模型。'}
+            </p>
+            {modelMissing && (
+              <p className="text-xs text-amber-600">
+                ⚠ 目前設定的模型「{data.preferred_model}」不在清單中，可能已下架或尚未安裝，建議重新選擇。
               </p>
             )}
-            {testConnection.isError && (
-              <p className="text-sm text-red-600">✕ {(testConnection.error as Error).message}</p>
-            )}
           </div>
-        )}
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">偏好模型</label>
-          <select
-            className="w-full rounded border px-3 py-2"
-            value={model || data.preferred_model}
-            onChange={(e) => setModel(e.target.value)}
-            disabled={modelsLoading}
-          >
-            {!modelOptions?.some((m) => m.id === data.preferred_model) && (
-              <option value={data.preferred_model}>{data.preferred_model}</option>
-            )}
-            {modelOptions?.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500">
-            {modelsLoading
-              ? '正在取得模型清單...'
-              : currentProvider === 'openrouter'
-                ? '清單來自 OpenRouter 目前的免費模型；若選用的模型回報需要付費，系統會自動嘗試清單中的其他免費模型。'
-                : '清單來自本地 Ollama 已安裝的模型；若選用的模型尚未安裝，系統會自動嘗試其他已安裝的模型。'}
-          </p>
-          {modelMissing && (
-            <p className="text-xs text-amber-600">
-              ⚠ 目前設定的模型「{data.preferred_model}」不在清單中，可能已下架或尚未安裝，建議重新選擇。
-            </p>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <div className="flex items-center gap-3">
-        <button
-          className="rounded bg-purple-600 px-4 py-2 text-white disabled:opacity-50"
+        <Button
           disabled={mutation.isPending || !hasChanges}
           onClick={() =>
             mutation.mutate({
@@ -206,15 +222,29 @@ export function SettingsPage() {
           }
         >
           {mutation.isPending ? '儲存中...' : '儲存設定'}
-        </button>
+        </Button>
         {hasChanges && (
-          <button type="button" className="text-sm text-gray-500 underline" onClick={resetDrafts}>
+          <Button type="button" variant="ghost" onClick={resetDrafts}>
             取消
-          </button>
+          </Button>
         )}
-        {mutation.isSuccess && <span className="text-sm text-green-600">已儲存</span>}
-        {mutation.isError && <span className="text-sm text-red-600">{(mutation.error as Error).message}</span>}
+        {mutation.isError && (
+          <span className="text-sm text-destructive">{(mutation.error as Error).message}</span>
+        )}
       </div>
+
+      <AlertDialog open={confirmClearKey} onOpenChange={setConfirmClearKey}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>清除已儲存的 API Key？</AlertDialogTitle>
+            <AlertDialogDescription>清除後，使用 OpenRouter 生成內容前需要重新輸入金鑰。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => clearKeyMutation.mutate()}>清除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

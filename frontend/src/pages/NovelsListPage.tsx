@@ -1,12 +1,29 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
+import { BookText } from 'lucide-react'
 import { novelsApi } from '../api/novels'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
+import { EmptyState } from '@/components/EmptyState'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export function NovelsListPage() {
   const queryClient = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ['novels'], queryFn: novelsApi.list })
   const [title, setTitle] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const createMutation = useMutation({
     mutationFn: novelsApi.create,
@@ -18,52 +35,64 @@ export function NovelsListPage() {
 
   const deleteMutation = useMutation({
     mutationFn: novelsApi.remove,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['novels'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['novels'] })
+      setDeletingId(null)
+      toast.success('已刪除小說')
+    },
   })
 
   return (
-    <div className="mx-auto max-w-2xl p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">我的小說</h1>
-        <Link to="/settings" className="text-sm text-purple-600 underline">
-          設定
-        </Link>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <h1 className="text-2xl font-semibold">我的小說</h1>
 
       <div className="flex gap-2">
-        <input
-          className="flex-1 rounded border px-3 py-2"
+        <Input
           placeholder="新小說標題"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && title) createMutation.mutate({ title })
+          }}
         />
-        <button
-          className="rounded bg-purple-600 px-4 py-2 text-white disabled:opacity-50"
-          disabled={!title || createMutation.isPending}
-          onClick={() => createMutation.mutate({ title })}
-        >
+        <Button disabled={!title || createMutation.isPending} onClick={() => createMutation.mutate({ title })}>
           建立
-        </button>
+        </Button>
       </div>
 
-      {isLoading && <p>載入中...</p>}
+      {isLoading && <p className="text-sm text-muted-foreground">載入中...</p>}
 
-      <ul className="divide-y rounded border">
-        {data?.map((novel) => (
-          <li key={novel.id} className="flex items-center justify-between p-4">
-            <Link to={`/novels/${novel.id}`} className="font-medium hover:underline">
-              {novel.title}
-            </Link>
-            <button
-              className="text-sm text-red-600"
-              onClick={() => deleteMutation.mutate(novel.id)}
-            >
-              刪除
-            </button>
-          </li>
-        ))}
-        {data?.length === 0 && <li className="p-4 text-gray-500">尚無小說，請先建立一本。</li>}
-      </ul>
+      {data?.length === 0 ? (
+        <EmptyState icon={BookText} title="尚無小說" description="在上方輸入標題，建立你的第一本小說。" />
+      ) : (
+        <div className="space-y-2">
+          {data?.map((novel) => (
+            <Card key={novel.id}>
+              <CardContent className="flex items-center justify-between">
+                <Link to={`/novels/${novel.id}`} className="font-medium hover:underline">
+                  {novel.title}
+                </Link>
+                <button className="text-sm text-destructive hover:underline" onClick={() => setDeletingId(novel.id)}>
+                  刪除
+                </button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除這本小說？</AlertDialogTitle>
+            <AlertDialogDescription>此操作無法復原，小說的所有條目、章節與大綱都會一併刪除。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deletingId && deleteMutation.mutate(deletingId)}>刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
