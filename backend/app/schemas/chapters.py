@@ -8,6 +8,7 @@ ChapterStatus = Literal["planned", "drafted", "final"]
 class ChapterCreate(BaseModel):
     chapter_number: int
     title: str = ""
+    user_direction: str = ""
 
 
 class ChapterUpdate(BaseModel):

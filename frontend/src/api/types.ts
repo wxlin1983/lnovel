@@ -129,6 +129,7 @@ export interface Chapter {
 export interface ChapterCreate {
   chapter_number: number
   title?: string
+  user_direction?: string
 }
 
 export interface ChapterUpdate {

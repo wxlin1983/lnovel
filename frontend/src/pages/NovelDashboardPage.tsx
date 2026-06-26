@@ -56,8 +56,22 @@ export function NovelDashboardPage() {
     mutationFn: () => {
       const nextNumber = (chaptersQuery.data?.reduce((max, c) => Math.max(max, c.chapter_number), 0) ?? 0) + 1
       const outlineMatch = novelQuery.data?.book_outline.find((c) => c.chapter_number === nextNumber)
-      return chaptersApi.create(novelId!, { chapter_number: nextNumber, title: outlineMatch?.title })
+      return chaptersApi.create(novelId!, {
+        chapter_number: nextNumber,
+        title: outlineMatch?.title,
+        user_direction: outlineMatch?.summary,
+      })
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chapters', novelId] }),
+  })
+
+  const applyOutlineMutation = useMutation({
+    mutationFn: (c: OutlineChapter) =>
+      chaptersApi.create(novelId!, {
+        chapter_number: c.chapter_number,
+        title: c.title,
+        user_direction: c.summary,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chapters', novelId] }),
   })
 
@@ -126,6 +140,7 @@ export function NovelDashboardPage() {
     items: entities.filter((e) => e.type === type),
   }))
   const outline = outlineDraft ?? novel.book_outline
+  const chapterByNumber = new Map((chaptersQuery.data ?? []).map((c) => [c.chapter_number, c]))
 
   function updateOutlineChapter(idx: number, field: 'title' | 'summary', value: string) {
     const next = [...outline]
@@ -238,22 +253,45 @@ export function NovelDashboardPage() {
 
         {outline.length > 0 && (
           <div className="space-y-2">
-            {outline.map((c, idx) => (
-              <div key={idx} className="space-y-1 rounded border p-3">
-                <p className="text-sm font-medium text-gray-500">第 {c.chapter_number} 章</p>
-                <input
-                  className="w-full rounded border px-2 py-1 text-sm font-medium"
-                  value={c.title}
-                  onChange={(e) => updateOutlineChapter(idx, 'title', e.target.value)}
-                />
-                <textarea
-                  className="w-full rounded border px-2 py-1 text-sm"
-                  rows={2}
-                  value={c.summary}
-                  onChange={(e) => updateOutlineChapter(idx, 'summary', e.target.value)}
-                />
-              </div>
-            ))}
+            {outline.map((c, idx) => {
+              const existingChapter = chapterByNumber.get(c.chapter_number)
+              const applyingThis =
+                applyOutlineMutation.isPending && applyOutlineMutation.variables?.chapter_number === c.chapter_number
+              return (
+                <div key={idx} className="space-y-1 rounded border p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-500">第 {c.chapter_number} 章</p>
+                    {existingChapter ? (
+                      <Link
+                        to={`/novels/${novelId}/chapters/${existingChapter.id}/plan`}
+                        className="text-sm text-purple-600 underline"
+                      >
+                        已建立章節 →
+                      </Link>
+                    ) : (
+                      <button
+                        className="rounded bg-gray-200 px-2 py-1 text-sm disabled:opacity-50"
+                        disabled={applyOutlineMutation.isPending}
+                        onClick={() => applyOutlineMutation.mutate(c)}
+                      >
+                        {applyingThis ? '建立中...' : '套用為章節'}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    className="w-full rounded border px-2 py-1 text-sm font-medium"
+                    value={c.title}
+                    onChange={(e) => updateOutlineChapter(idx, 'title', e.target.value)}
+                  />
+                  <textarea
+                    className="w-full rounded border px-2 py-1 text-sm"
+                    rows={2}
+                    value={c.summary}
+                    onChange={(e) => updateOutlineChapter(idx, 'summary', e.target.value)}
+                  />
+                </div>
+              )
+            })}
             <button
               className="rounded bg-gray-200 px-3 py-2 text-sm disabled:opacity-50"
               disabled={saveOutlineMutation.isPending || outlineDraft === null}
@@ -261,6 +299,9 @@ export function NovelDashboardPage() {
             >
               儲存規劃編輯
             </button>
+            {applyOutlineMutation.isError && (
+              <p className="text-sm text-red-600">{(applyOutlineMutation.error as Error).message}</p>
+            )}
           </div>
         )}
       </div>

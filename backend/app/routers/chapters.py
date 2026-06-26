@@ -61,14 +61,15 @@ def create_chapter(novel_id: str, payload: ChapterCreate, db: Connection = Depen
     try:
         db.execute(
             text(
-                "INSERT INTO chapters (id, novel_id, chapter_number, title) "
-                "VALUES (:id, :novel_id, :chapter_number, :title)"
+                "INSERT INTO chapters (id, novel_id, chapter_number, title, user_direction) "
+                "VALUES (:id, :novel_id, :chapter_number, :title, :user_direction)"
             ),
             {
                 "id": chapter_id,
                 "novel_id": novel_id,
                 "chapter_number": payload.chapter_number,
                 "title": payload.title,
+                "user_direction": payload.user_direction,
             },
         )
         db.commit()
