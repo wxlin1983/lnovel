@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS novels (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     premise TEXT NOT NULL DEFAULT '',
+    inspiration TEXT NOT NULL DEFAULT '',
+    book_outline_json TEXT NOT NULL DEFAULT '[]',
     rolling_summary TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))

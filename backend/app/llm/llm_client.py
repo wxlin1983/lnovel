@@ -149,6 +149,16 @@ async def stream_chat_completion_with_fallback(
 
 def _mock_complete(messages: list[dict[str, str]]) -> str:
     system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+    if '"chapters"' in system_content:
+        return json.dumps(
+            {
+                "chapters": [
+                    {"chapter_number": 1, "title": "模擬第一章", "summary": "（模擬）這是自動生成的測試章節規劃。"},
+                    {"chapter_number": 2, "title": "模擬第二章", "summary": "（模擬）測試章節規劃：衝突升溫。"},
+                ]
+            },
+            ensure_ascii=False,
+        )
     if "JSON" in system_content:
         return json.dumps(
             {
@@ -160,4 +170,6 @@ def _mock_complete(messages: list[dict[str, str]]) -> str:
             },
             ensure_ascii=False,
         )
+    if "故事大綱" in system_content:
+        return "（模擬大綱）這是自動生成的測試故事大綱，用於確認靈感生成流程正常運作。"
     return "（模擬摘要）這是自動生成的測試故事摘要，用於確認 rolling_summary 更新流程正常運作。"

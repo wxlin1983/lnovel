@@ -1,5 +1,4 @@
 import json
-import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy import Connection, text
 
 from app.deps import get_db
+from app.llm.code_fence import strip_code_fence
 from app.llm.llm_client import LLMError, complete_chat_with_fallback
 from app.llm.prompts.chapter_plan import build_messages
 from app.llm.provider_config import load_provider_config
@@ -15,13 +15,6 @@ from app.schemas.chapter_plan import ChapterPlanContent, PlanGenerateRequest, Pl
 from app.schemas.chapters import Chapter
 
 router = APIRouter(prefix="/api/novels/{novel_id}/chapters/{chapter_id}/plan", tags=["chapter_plan"])
-
-CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*?)\n```$", re.DOTALL)
-
-
-def _strip_code_fence(text_: str) -> str:
-    match = CODE_FENCE_RE.match(text_.strip())
-    return match.group(1) if match else text_.strip()
 
 
 def _gather_plan_context(db: Connection, novel_id: str, chapter_row):
@@ -82,7 +75,7 @@ async def _generate_plan_content(db: Connection, novel_id: str, chapter_row) -> 
     for _ in range(2):
         try:
             raw = await complete_chat_with_fallback(cfg, messages)
-            plan = ChapterPlanContent.model_validate_json(_strip_code_fence(raw))
+            plan = ChapterPlanContent.model_validate_json(strip_code_fence(raw))
             return plan.model_dump()
         except (ValidationError, json.JSONDecodeError) as exc:
             last_error = exc

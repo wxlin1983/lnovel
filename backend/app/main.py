@@ -9,6 +9,8 @@ from app.routers import (
     entities,
     entity_chat,
     models,
+    novel_outline,
+    novel_premise,
     novels,
     settings as settings_router,
 )
@@ -18,6 +20,8 @@ app = FastAPI(title="lnovel")
 app.include_router(settings_router.router)
 app.include_router(models.router)
 app.include_router(novels.router)
+app.include_router(novel_premise.router)
+app.include_router(novel_outline.router)
 app.include_router(entities.router)
 app.include_router(entity_chat.router)
 app.include_router(chapters.router)

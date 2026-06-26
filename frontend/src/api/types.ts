@@ -20,10 +20,18 @@ export interface ModelOption {
   context_length: number | null
 }
 
+export interface OutlineChapter {
+  chapter_number: number
+  title: string
+  summary: string
+}
+
 export interface Novel {
   id: string
   title: string
   premise: string
+  inspiration: string
+  book_outline: OutlineChapter[]
   rolling_summary: string
   created_at: string
   updated_at: string
@@ -32,11 +40,26 @@ export interface Novel {
 export interface NovelCreate {
   title: string
   premise?: string
+  inspiration?: string
 }
 
 export interface NovelUpdate {
   title?: string
   premise?: string
+  inspiration?: string
+}
+
+export interface PremiseGenerateRequest {
+  inspiration?: string
+}
+
+export interface PremiseProposal {
+  premise: string
+}
+
+export interface OutlineGenerateRequest {
+  chapter_count?: number
+  user_direction?: string
 }
 
 export type EntityType = 'character' | 'location' | 'storyline'
