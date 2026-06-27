@@ -72,6 +72,7 @@ def _generate_prose_response(
         entities_detail=entities_detail,
         previous_prose_excerpt=previous_prose_excerpt,
         user_direction=chapter_row.user_direction,
+        target_word_count=getattr(chapter_row, "target_word_count", None),
     )
 
     async def event_generator() -> AsyncIterator[dict[str, str]]:

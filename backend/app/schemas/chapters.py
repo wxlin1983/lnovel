@@ -19,6 +19,7 @@ class ChapterUpdate(BaseModel):
     title: str | None = None
     user_direction: str | None = None
     relevant_entity_ids: list[str] | None = None
+    target_word_count: int | None = None
 
 
 class Chapter(BaseModel):
@@ -32,5 +33,6 @@ class Chapter(BaseModel):
     prose: str
     user_direction: str
     relevant_entity_ids: list[str]
+    target_word_count: int | None
     created_at: str
     updated_at: str

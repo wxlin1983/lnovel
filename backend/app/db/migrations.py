@@ -17,6 +17,9 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
         "premise_chat_json": "TEXT NOT NULL DEFAULT '[]'",
         "outline_chat_json": "TEXT NOT NULL DEFAULT '[]'",
     },
+    "chapters": {
+        "target_word_count": "INTEGER",
+    },
 }
 
 

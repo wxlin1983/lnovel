@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS chapters (
     prose TEXT NOT NULL DEFAULT '',
     user_direction TEXT NOT NULL DEFAULT '',
     relevant_entity_ids_json TEXT NOT NULL DEFAULT '[]',
+    target_word_count INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(novel_id, chapter_number)

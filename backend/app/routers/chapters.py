@@ -23,6 +23,7 @@ def _row_to_chapter(row) -> Chapter:
         prose=row.prose,
         user_direction=row.user_direction,
         relevant_entity_ids=json.loads(row.relevant_entity_ids_json),
+        target_word_count=getattr(row, "target_word_count", None),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -99,6 +100,8 @@ def update_chapter(
         updates["user_direction"] = payload.user_direction
     if payload.relevant_entity_ids is not None:
         updates["relevant_entity_ids_json"] = json.dumps(payload.relevant_entity_ids)
+    if "target_word_count" in payload.model_fields_set:
+        updates["target_word_count"] = payload.target_word_count
 
     if updates:
         set_clause = ", ".join(f"{key} = :{key}" for key in updates) + ", updated_at = datetime('now')"

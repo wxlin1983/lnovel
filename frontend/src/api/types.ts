@@ -129,6 +129,7 @@ export interface Chapter {
   prose: string
   user_direction: string
   relevant_entity_ids: string[]
+  target_word_count: number | null
   created_at: string
   updated_at: string
 }
@@ -143,6 +144,7 @@ export interface ChapterUpdate {
   title?: string
   user_direction?: string
   relevant_entity_ids?: string[]
+  target_word_count?: number | null
 }
 
 export interface PlanGenerateRequest {

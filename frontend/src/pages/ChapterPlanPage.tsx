@@ -36,11 +36,13 @@ export function ChapterPlanPage() {
   const [beatsDraft, setBeatsDraft] = useState<PlanBeat[] | null>(null)
   const [userDirection, setUserDirection] = useState<string | null>(null)
   const [relevantIds, setRelevantIds] = useState<string[] | null>(null)
+  const [targetWordCount, setTargetWordCount] = useState<string | null>(null)
 
   useEffect(() => {
     setBeatsDraft(null)
     setUserDirection(null)
     setRelevantIds(null)
+    setTargetWordCount(null)
   }, [chapterId])
 
   function applyUpdate(updated: Chapter) {
@@ -71,6 +73,15 @@ export function ChapterPlanPage() {
     onSuccess: (updated) => {
       applyUpdate(updated)
       toast.success('已儲存手動編輯')
+    },
+  })
+
+  const saveWordCountMutation = useMutation({
+    mutationFn: (count: number | null) =>
+      chaptersApi.update(novelId!, chapterId!, { target_word_count: count }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(chapterKey, updated)
+      toast.success('已儲存目標字數')
     },
   })
 
@@ -120,14 +131,48 @@ export function ChapterPlanPage() {
       </div>
 
       <Card>
-        <CardContent className="space-y-2">
-          <Label htmlFor="user-direction">本章指示（給 AI 的方向）</Label>
-          <Textarea
-            id="user-direction"
-            rows={2}
-            value={userDirection ?? chapter.user_direction}
-            onChange={(e) => setUserDirection(e.target.value)}
-          />
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="user-direction">本章指示（給 AI 的方向）</Label>
+            <Textarea
+              id="user-direction"
+              rows={2}
+              value={userDirection ?? chapter.user_direction}
+              onChange={(e) => setUserDirection(e.target.value)}
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="target-word-count">目標字數</Label>
+              <Input
+                id="target-word-count"
+                type="number"
+                min={100}
+                step={100}
+                placeholder="例：3000"
+                className="w-36"
+                value={targetWordCount ?? (chapter.target_word_count?.toString() ?? '')}
+                onChange={(e) => setTargetWordCount(e.target.value)}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={saveWordCountMutation.isPending || targetWordCount === null}
+              onClick={() => {
+                const v = targetWordCount?.trim()
+                saveWordCountMutation.mutate(v ? parseInt(v, 10) : null)
+                setTargetWordCount(null)
+              }}
+            >
+              儲存
+            </Button>
+            {chapter.target_word_count && (
+              <span className="text-sm text-muted-foreground">
+                目前設定：{chapter.target_word_count.toLocaleString()} 字
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
 

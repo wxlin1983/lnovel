@@ -13,6 +13,7 @@ def build_messages(
     entities_detail: list[dict[str, Any]],
     previous_prose_excerpt: str | None,
     user_direction: str,
+    target_word_count: int | None = None,
 ) -> list[dict[str, str]]:
     parts = [f"小說大綱：{novel_premise}", f"故事至今摘要：{rolling_summary or '（尚無）'}"]
 
@@ -28,6 +29,9 @@ def build_messages(
 
     if user_direction:
         parts.append(f"使用者對本章的指示：{user_direction}")
+
+    if target_word_count:
+        parts.append(f"目標字數：約 {target_word_count} 字（繁體中文字元數，請盡量達到此長度）。")
 
     parts.append("請開始撰寫本章正文（繁體中文）。")
 
