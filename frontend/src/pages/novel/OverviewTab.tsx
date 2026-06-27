@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { novelsApi } from '../../api/novels'
 import { novelPremiseApi } from '../../api/novelPremise'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 export function OverviewTab() {
   const { novelId } = useParams<{ novelId: string }>()
   const queryClient = useQueryClient()
+  const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [premiseDraft, setPremiseDraft] = useState<string | null>(null)
   const [inspirationDraft, setInspirationDraft] = useState<string | null>(null)
   const [premiseProposal, setPremiseProposal] = useState<string | null>(null)
@@ -21,6 +23,16 @@ export function OverviewTab() {
     queryKey: ['novel', novelId],
     queryFn: () => novelsApi.get(novelId!),
     enabled: !!novelId,
+  })
+
+  const updateTitleMutation = useMutation({
+    mutationFn: (title: string) => novelsApi.update(novelId!, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['novel', novelId] })
+      queryClient.invalidateQueries({ queryKey: ['novels'] })
+      setTitleDraft(null)
+      toast.success('已儲存書名')
+    },
   })
 
   const updateNovelMutation = useMutation({
@@ -46,6 +58,31 @@ export function OverviewTab() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>書名</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Label htmlFor="title" className="sr-only">書名</Label>
+          <Input
+            id="title"
+            value={titleDraft ?? novel.title}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && titleDraft && titleDraft.trim()) {
+                updateTitleMutation.mutate(titleDraft.trim())
+              }
+            }}
+          />
+          <Button
+            disabled={titleDraft === null || !titleDraft.trim() || updateTitleMutation.isPending}
+            onClick={() => updateTitleMutation.mutate(titleDraft!.trim())}
+          >
+            儲存書名
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>靈感</CardTitle>
