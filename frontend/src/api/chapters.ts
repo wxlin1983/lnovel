@@ -10,4 +10,6 @@ export const chaptersApi = {
     api.put<Chapter>(`/novels/${novelId}/chapters/${chapterId}`, payload),
   remove: (novelId: string, chapterId: string) =>
     api.delete<void>(`/novels/${novelId}/chapters/${chapterId}`),
+  reorder: (novelId: string, chapterIds: string[]) =>
+    api.post<void>(`/novels/${novelId}/chapters/reorder`, { chapter_ids: chapterIds }),
 }

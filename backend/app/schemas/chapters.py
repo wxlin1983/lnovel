@@ -11,6 +11,10 @@ class ChapterCreate(BaseModel):
     user_direction: str = ""
 
 
+class ChapterReorder(BaseModel):
+    chapter_ids: list[str]
+
+
 class ChapterUpdate(BaseModel):
     title: str | None = None
     user_direction: str | None = None

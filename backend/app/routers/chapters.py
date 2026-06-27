@@ -6,7 +6,7 @@ from sqlalchemy import Connection, text
 from sqlalchemy.exc import IntegrityError
 
 from app.deps import get_db
-from app.schemas.chapters import Chapter, ChapterCreate, ChapterUpdate
+from app.schemas.chapters import Chapter, ChapterCreate, ChapterReorder, ChapterUpdate
 
 router = APIRouter(prefix="/api/novels/{novel_id}/chapters", tags=["chapters"])
 
@@ -113,4 +113,41 @@ def update_chapter(
 def delete_chapter(novel_id: str, chapter_id: str, db: Connection = Depends(get_db)) -> None:
     _require_chapter(db, novel_id, chapter_id)
     db.execute(text("DELETE FROM chapters WHERE id = :id"), {"id": chapter_id})
+    # Renumber remaining chapters to close the gap, using two passes to avoid
+    # the UNIQUE(novel_id, chapter_number) constraint firing mid-update.
+    remaining = db.execute(
+        text("SELECT id FROM chapters WHERE novel_id = :novel_id ORDER BY chapter_number ASC"),
+        {"novel_id": novel_id},
+    ).all()
+    for i, row in enumerate(remaining):
+        db.execute(text("UPDATE chapters SET chapter_number = :n WHERE id = :id"), {"n": -(i + 1), "id": row.id})
+    for i, row in enumerate(remaining):
+        db.execute(text("UPDATE chapters SET chapter_number = :n WHERE id = :id"), {"n": i + 1, "id": row.id})
+    db.commit()
+
+
+@router.post("/reorder", status_code=204)
+def reorder_chapters(novel_id: str, payload: ChapterReorder, db: Connection = Depends(get_db)) -> None:
+    _require_novel(db, novel_id)
+    # Validate all IDs belong to this novel
+    rows = db.execute(
+        text("SELECT id FROM chapters WHERE novel_id = :novel_id"),
+        {"novel_id": novel_id},
+    ).all()
+    existing_ids = {row.id for row in rows}
+    if set(payload.chapter_ids) != existing_ids:
+        raise HTTPException(status_code=400, detail="chapter_ids must contain exactly all chapters for this novel")
+
+    # Two-pass to avoid UNIQUE(novel_id, chapter_number) conflicts mid-transaction:
+    # first shift all to large negative temps, then assign final 1..N values.
+    for i, chapter_id in enumerate(payload.chapter_ids):
+        db.execute(
+            text("UPDATE chapters SET chapter_number = :n WHERE id = :id"),
+            {"n": -(i + 1), "id": chapter_id},
+        )
+    for i, chapter_id in enumerate(payload.chapter_ids):
+        db.execute(
+            text("UPDATE chapters SET chapter_number = :n WHERE id = :id"),
+            {"n": i + 1, "id": chapter_id},
+        )
     db.commit()
