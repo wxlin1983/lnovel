@@ -26,12 +26,19 @@ export interface OutlineChapter {
   summary: string
 }
 
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface Novel {
   id: string
   title: string
   premise: string
   inspiration: string
   book_outline: OutlineChapter[]
+  premise_chat: ChatTurn[]
+  outline_chat: ChatTurn[]
   rolling_summary: string
   created_at: string
   updated_at: string

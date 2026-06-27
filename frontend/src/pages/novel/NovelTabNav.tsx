@@ -6,10 +6,10 @@ interface NovelTabNavProps {
 }
 
 const TABS = [
-  { to: '', label: '總覽', end: true },
-  { to: 'outline', label: '章節規劃', end: false },
+  { to: '', label: '規劃室', end: true },
   { to: 'world', label: '世界觀', end: false },
   { to: 'chapters', label: '章節', end: false },
+  { to: 'fulltext', label: '全文', end: false },
 ]
 
 export function NovelTabNav({ novelId }: NovelTabNavProps) {

@@ -86,12 +86,22 @@ function SortableChapterRow({
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <Link
-          to={`/novels/${novelId}/chapters/${chapter.id}/plan`}
-          className="flex-1 font-medium hover:underline"
-        >
-          第 {chapter.chapter_number} 章 {chapter.title || '（未命名）'}
-        </Link>
+        <div className="flex flex-1 items-center gap-3">
+          <Link
+            to={`/novels/${novelId}/chapters/${chapter.id}/plan`}
+            className="font-medium hover:underline"
+          >
+            第 {chapter.chapter_number} 章 {chapter.title || '（未命名）'}
+          </Link>
+          {chapter.status !== 'planned' && (
+            <Link
+              to={`/novels/${novelId}/chapters/${chapter.id}/prose`}
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              正文
+            </Link>
+          )}
+        </div>
 
         <Badge
           variant={chapter.status === 'planned' ? 'outline' : 'secondary'}

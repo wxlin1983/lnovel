@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Connection, text
 
 from app.deps import get_db
-from app.schemas.novels import Novel, NovelCreate, NovelUpdate
+from app.schemas.novels import ChatTurn, Novel, NovelCreate, NovelUpdate
 
 router = APIRouter(prefix="/api/novels", tags=["novels"])
 
@@ -17,6 +17,8 @@ def _row_to_novel(row) -> Novel:
         premise=row.premise,
         inspiration=row.inspiration,
         book_outline=json.loads(row.book_outline_json),
+        premise_chat=[ChatTurn(**t) for t in json.loads(row.premise_chat_json)],
+        outline_chat=[ChatTurn(**t) for t in json.loads(row.outline_chat_json)],
         rolling_summary=row.rolling_summary,
         created_at=row.created_at,
         updated_at=row.updated_at,

@@ -173,7 +173,10 @@ export function ChapterPlanPage() {
           {beats.map((beat, idx) => (
             <Card key={idx}>
               <CardHeader>
-                <CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                    ch{chapter.chapter_number}-{idx + 1}
+                  </span>
                   <Input value={beat.title} onChange={(e) => updateBeat(idx, 'title', e.target.value)} />
                 </CardTitle>
               </CardHeader>

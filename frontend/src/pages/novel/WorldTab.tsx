@@ -26,6 +26,12 @@ const TYPE_LABELS: Record<EntityType, string> = {
   storyline: '故事線',
 }
 
+const TYPE_PREFIX: Record<EntityType, string> = {
+  character: 'chr',
+  location: 'loc',
+  storyline: 'stl',
+}
+
 export function WorldTab() {
   const { novelId } = useParams<{ novelId: string }>()
   const queryClient = useQueryClient()
@@ -95,7 +101,7 @@ export function WorldTab() {
             <h3 className="font-medium text-muted-foreground">{TYPE_LABELS[type]}</h3>
             {items.length === 0 && <p className="text-sm text-muted-foreground">尚無{TYPE_LABELS[type]}</p>}
             <ul className="space-y-2">
-              {items.map((entity: Entity) => (
+              {items.map((entity: Entity, idx: number) => (
                 <li key={entity.id} className="rounded-lg border p-3">
                   {editingId === entity.id ? (
                     <EntityForm
@@ -107,7 +113,12 @@ export function WorldTab() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium">{entity.name}</p>
+                        <div className="flex items-baseline gap-2">
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                            {TYPE_PREFIX[type]}{idx + 1}
+                          </span>
+                          <p className="font-medium">{entity.name}</p>
+                        </div>
                         <p className="text-sm text-muted-foreground">{entity.description}</p>
                       </div>
                       <div className="flex gap-3 text-sm">

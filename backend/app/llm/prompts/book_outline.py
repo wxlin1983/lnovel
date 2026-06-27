@@ -33,3 +33,21 @@ def build_messages(
         {"role": "system", "content": SYSTEM_INSTRUCTIONS},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
+
+
+def build_revise_messages(
+    *,
+    premise: str,
+    current_outline_json: str,
+    message: str,
+) -> list[dict[str, str]]:
+    user_content = (
+        f"故事大綱：{premise}\n\n"
+        f"目前全書架構 JSON：\n{current_outline_json}\n\n"
+        f"使用者修改意見：{message}\n\n"
+        "請根據意見修改全書架構，維持相同章節數，輸出完整 JSON。"
+    )
+    return [
+        {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+        {"role": "user", "content": user_content},
+    ]

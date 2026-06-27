@@ -14,6 +14,8 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     "novels": {
         "inspiration": "TEXT NOT NULL DEFAULT ''",
         "book_outline_json": "TEXT NOT NULL DEFAULT '[]'",
+        "premise_chat_json": "TEXT NOT NULL DEFAULT '[]'",
+        "outline_chat_json": "TEXT NOT NULL DEFAULT '[]'",
     },
 }
 

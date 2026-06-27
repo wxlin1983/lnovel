@@ -1,7 +1,9 @@
 import { api } from './client'
-import type { PremiseGenerateRequest, PremiseProposal } from './types'
+import type { Novel, PremiseGenerateRequest } from './types'
 
 export const novelPremiseApi = {
   generate: (novelId: string, payload: PremiseGenerateRequest = {}) =>
-    api.post<PremiseProposal>(`/novels/${novelId}/premise/generate`, payload),
+    api.post<Novel>(`/novels/${novelId}/premise/generate`, payload),
+  revise: (novelId: string, message: string) =>
+    api.post<Novel>(`/novels/${novelId}/premise/revise`, { message }),
 }

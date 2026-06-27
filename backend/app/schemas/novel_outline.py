@@ -18,3 +18,7 @@ class OutlineGenerateRequest(BaseModel):
 
 class OutlineUpdateRequest(BaseModel):
     chapters: list[OutlineChapter]
+
+
+class OutlineReviseRequest(BaseModel):
+    message: str
